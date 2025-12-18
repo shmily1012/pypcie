@@ -1,9 +1,6 @@
 from setuptools import find_packages, setup
 
-
-about = {}
-with open("pcispace/__init__.py", "r") as handle:
-    exec(handle.read(), about)
+VERSION = "0.1.0"
 
 
 with open("README.md", "r") as handle:
@@ -12,7 +9,7 @@ with open("README.md", "r") as handle:
 
 setup(
     name="pcispace",
-    version=about.get("__version__", "0.0.0"),
+    version=VERSION,
     description="PCI config and BAR access via sysfs",
     long_description=long_description,
     long_description_content_type="text/markdown",
