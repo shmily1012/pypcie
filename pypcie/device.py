@@ -75,6 +75,24 @@ class PciDevice(object):
             self._address, offset, width, value, sysfs_root=self.sysfs.root
         )
 
+    def cfgrd8(self, offset):
+        return self.cfg_read(1, offset)
+
+    def cfgrd16(self, offset):
+        return self.cfg_read(2, offset)
+
+    def cfgrd32(self, offset):
+        return self.cfg_read(4, offset)
+
+    def cfgwr8(self, offset, value):
+        self.cfg_write(1, offset, value)
+
+    def cfgwr16(self, offset, value):
+        self.cfg_write(2, offset, value)
+
+    def cfgwr32(self, offset, value):
+        self.cfg_write(4, offset, value)
+
     def bar_read(self, index, width, offset):
         return bar_access.read(
             self._address, index, offset, width, sysfs_root=self.sysfs.root
@@ -84,6 +102,30 @@ class PciDevice(object):
         bar_access.write(
             self._address, index, offset, width, value, sysfs_root=self.sysfs.root
         )
+
+    def memrd8(self, index, offset):
+        return self.bar_read(index, 1, offset)
+
+    def memrd16(self, index, offset):
+        return self.bar_read(index, 2, offset)
+
+    def memrd32(self, index, offset):
+        return self.bar_read(index, 4, offset)
+
+    def memrd64(self, index, offset):
+        return self.bar_read(index, 8, offset)
+
+    def memwr8(self, index, offset, value):
+        self.bar_write(index, 1, offset, value)
+
+    def memwr16(self, index, offset, value):
+        self.bar_write(index, 2, offset, value)
+
+    def memwr32(self, index, offset, value):
+        self.bar_write(index, 4, offset, value)
+
+    def memwr64(self, index, offset, value):
+        self.bar_write(index, 8, offset, value)
 
     def __repr__(self):
         return "PciDevice(%s)" % self._address.bdf

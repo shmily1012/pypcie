@@ -1,7 +1,7 @@
 import pytest
 
-from pcispace.errors import SysfsFormatError, ValueRangeError
-from pcispace.types import (
+from pypcie.errors import SysfsFormatError, ValueRangeError
+from pypcie.types import (
     PciAddress,
     validate_u16,
     validate_u32,

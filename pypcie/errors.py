@@ -1,8 +1,8 @@
-"""Custom exceptions for pcispace."""
+"""Custom exceptions for pypcie."""
 
 
 class PciSpaceError(Exception):
-    """Base exception for pcispace."""
+    """Base exception for pypcie."""
 
 
 class PciError(PciSpaceError):

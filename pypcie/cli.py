@@ -1,4 +1,4 @@
-"""Command-line interface for pcispace."""
+"""Command-line interface for pypcie."""
 
 import argparse
 import os
@@ -138,7 +138,7 @@ def _cmd_dump_config(args):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="pcispace")
+    parser = argparse.ArgumentParser(prog="pypcie")
     parser.add_argument(
         "-r",
         "--sysfs-root",

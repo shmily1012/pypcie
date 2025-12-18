@@ -1,8 +1,8 @@
-# pcispace
+# pypcie
 
 ## Overview
 
-pcispace is a small Python 3.6+ library and CLI for working with PCI devices via
+pypcie is a small Python 3.6+ library and CLI for working with PCI devices via
 Linux sysfs. It provides:
 
 - PCI BDF parsing (`0000:03:00.0`)
@@ -22,7 +22,7 @@ Linux sysfs. It provides:
 ## Installation
 
 ```bash
-pip install pcispace
+pip install pypcie
 ```
 
 Editable install for development:
@@ -36,8 +36,8 @@ pip install -e .
 Discovery:
 
 ```python
-from pcispace.discover import list_devices, find_by_id
-from pcispace.sysfs import Sysfs
+from pypcie.discover import list_devices, find_by_id
+from pypcie.sysfs import Sysfs
 
 sysfs = Sysfs()
 for addr in list_devices(sysfs=sysfs):
@@ -50,7 +50,7 @@ print([addr.bdf for addr in matches])
 Config read/write:
 
 ```python
-from pcispace import config
+from pypcie import config
 
 bdf = "0000:03:00.0"
 value = config.read_u32(bdf, 0x10)
@@ -62,7 +62,7 @@ config.write_u16(bdf, 0x04, 0x0007)
 BAR read/write:
 
 ```python
-from pcispace import bar
+from pypcie import bar
 
 bdf = "0000:03:00.0"
 value = bar.read_u32(bdf, 0, 0x100)
@@ -74,8 +74,8 @@ bar.write_u32(bdf, 0, 0x104, 0xdeadbeef)
 Device wrapper:
 
 ```python
-from pcispace.device import PciDevice
-from pcispace.sysfs import Sysfs
+from pypcie.device import PciDevice
+from pypcie.sysfs import Sysfs
 
 sysfs = Sysfs()
 device = PciDevice(sysfs, "0000:03:00.0")
@@ -95,7 +95,7 @@ with bar0.open():
 List devices:
 
 ```bash
-pcispace list
+pypcie list
 # 0000:00:00.0
 # 0000:03:00.0
 ```
@@ -103,36 +103,36 @@ pcispace list
 Filter by vendor/device:
 
 ```bash
-pcispace list --vendor 0x8086
+pypcie list --vendor 0x8086
 # 0000:00:1f.6
 # 0000:00:1f.2
 
-pcispace find --vendor 0x8086 --device 0x1234
+pypcie find --vendor 0x8086 --device 0x1234
 # 0000:03:00.0
 ```
 
 Config access:
 
 ```bash
-pcispace cfg-read --bdf 0000:03:00.0 --offset 0x10 --width 32
+pypcie cfg-read --bdf 0000:03:00.0 --offset 0x10 --width 32
 # 0x00000007
 
-pcispace cfg-write --bdf 0000:03:00.0 --offset 0x04 --width 16 --value 0x0007
+pypcie cfg-write --bdf 0000:03:00.0 --offset 0x04 --width 16 --value 0x0007
 ```
 
 BAR access:
 
 ```bash
-pcispace bar-read --bdf 0000:03:00.0 --bar 0 --offset 0x100 --width 32
+pypcie bar-read --bdf 0000:03:00.0 --bar 0 --offset 0x100 --width 32
 # 0xdeadbeef
 
-pcispace bar-write --bdf 0000:03:00.0 --bar 0 --offset 0x104 --width 32 --value 0x00000001
+pypcie bar-write --bdf 0000:03:00.0 --bar 0 --offset 0x104 --width 32 --value 0x00000001
 ```
 
 Config dump:
 
 ```bash
-pcispace dump-config --bdf 0000:03:00.0 --start 0 --len 64
+pypcie dump-config --bdf 0000:03:00.0 --start 0 --len 64
 # 0000: 86 80 34 12 07 00 10 00 01 00 00 00 00 00 00 00
 # 0010: ...
 ```

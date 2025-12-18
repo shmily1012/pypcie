@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def _run_cli(args, cwd):
-    cmd = [sys.executable, "-m", "pcispace.cli"] + args
+    cmd = [sys.executable, "-m", "pypcie.cli"] + args
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
 
 

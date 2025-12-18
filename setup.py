@@ -8,7 +8,7 @@ with open("README.md", "r") as handle:
 
 
 setup(
-    name="pcispace",
+    name="pypcie",
     version=VERSION,
     description="PCI config and BAR access via sysfs",
     long_description=long_description,
@@ -19,7 +19,7 @@ setup(
     packages=find_packages(exclude=("tests",)),
     include_package_data=True,
     install_requires=[],
-    entry_points={"console_scripts": ["pcispace=pcispace.cli:main"]},
+    entry_points={"console_scripts": ["pypcie=pypcie.cli:main"]},
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",

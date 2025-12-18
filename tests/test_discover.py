@@ -1,13 +1,13 @@
 import pytest
 
-from pcispace.discover import (
+from pypcie.discover import (
     find_by_id,
     find_one_by_id,
     get_device_info,
     list_devices,
 )
-from pcispace.errors import DeviceNotFoundError, MultipleDevicesFoundError
-from pcispace.sysfs import Sysfs
+from pypcie.errors import DeviceNotFoundError, MultipleDevicesFoundError
+from pypcie.sysfs import Sysfs
 
 
 def test_list_devices(sysfs_root, make_device):

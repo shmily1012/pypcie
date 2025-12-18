@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from pcispace.errors import OutOfRangeError, ResourceNotFoundError, SysfsFormatError
-from pcispace.sysfs import Sysfs
+from pypcie.errors import OutOfRangeError, ResourceNotFoundError, SysfsFormatError
+from pypcie.sysfs import Sysfs
 
 
 def test_sysfs_paths(sysfs_root, make_device):

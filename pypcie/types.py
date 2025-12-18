@@ -1,4 +1,4 @@
-"""Core types and validation helpers for pcispace."""
+"""Core types and validation helpers for pypcie."""
 
 import re
 

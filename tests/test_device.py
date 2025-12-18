@@ -1,6 +1,6 @@
-from pcispace.device import PciDevice
-from pcispace.discover import find_by_id
-from pcispace.sysfs import Sysfs
+from pypcie.device import PciDevice
+from pypcie.discover import find_by_id
+from pypcie.sysfs import Sysfs
 
 
 def test_pcidevice_config_and_bar(sysfs_root, make_device):

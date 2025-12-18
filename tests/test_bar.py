@@ -1,8 +1,8 @@
 import pytest
 
-from pcispace.bar import PciBar
-from pcispace.errors import AlignmentError, OutOfRangeError
-from pcispace.sysfs import Sysfs
+from pypcie.bar import PciBar
+from pypcie.errors import AlignmentError, OutOfRangeError
+from pypcie.sysfs import Sysfs
 
 
 def test_bar_mmio_read_write(sysfs_root, make_device):

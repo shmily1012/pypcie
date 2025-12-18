@@ -1,7 +1,7 @@
 import pytest
 
-from pcispace import config
-from pcispace.errors import AlignmentError, OutOfRangeError
+from pypcie import config
+from pypcie.errors import AlignmentError, OutOfRangeError
 
 
 def test_config_read_write(sysfs_root, make_device):
