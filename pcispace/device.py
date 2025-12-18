@@ -4,49 +4,95 @@ import os
 
 from . import bar as bar_access
 from . import config as config_access
-from .errors import SysfsError
-from .sysfs import device_path, read_hex_file
+from .errors import ResourceNotFoundError
+from .sysfs import Sysfs
 from .types import PciAddress
 
 
-class Device(object):
+class _ConfigAccessor(object):
+    def __init__(self, device):
+        self._device = device
+
+    def read(self, width, offset):
+        return config_access.read(
+            self._device.address, offset, width, sysfs_root=self._device.sysfs.root
+        )
+
+    def write(self, width, offset, value):
+        config_access.write(
+            self._device.address,
+            offset,
+            width,
+            value,
+            sysfs_root=self._device.sysfs.root,
+        )
+
+
+class PciDevice(object):
     """Represents a PCI device in sysfs."""
 
-    def __init__(self, address, sysfs_root=None):
-        self.address = PciAddress.parse(address)
-        self.sysfs_root = sysfs_root
+    def __init__(self, sysfs, addr):
+        self.sysfs = sysfs or Sysfs()
+        self._address = PciAddress.parse(addr)
+        self._config = _ConfigAccessor(self)
 
     @property
-    def bdf(self):
-        return self.address.bdf
+    def address(self):
+        return self._address
 
     @property
-    def path(self):
-        return device_path(self.address, self.sysfs_root)
-
     def vendor_id(self):
-        return read_hex_file(os.path.join(self.path, "vendor"))
+        path = os.path.join(self.sysfs.device_dir(self._address), "vendor")
+        return self.sysfs.read_hex_attr(path)
 
+    @property
     def device_id(self):
-        return read_hex_file(os.path.join(self.path, "device"))
+        path = os.path.join(self.sysfs.device_dir(self._address), "device")
+        return self.sysfs.read_hex_attr(path)
 
-    def read_config(self, offset, width):
-        return config_access.read(self.address, offset, width, sysfs_root=self.sysfs_root)
+    @property
+    def class_code(self):
+        path = os.path.join(self.sysfs.device_dir(self._address), "class")
+        try:
+            return self.sysfs.read_hex_attr(path)
+        except ResourceNotFoundError:
+            return None
 
-    def write_config(self, offset, width, value):
-        config_access.write(self.address, offset, width, value, sysfs_root=self.sysfs_root)
+    @property
+    def config(self):
+        return self._config
 
-    def read_bar(self, bar, offset, width):
-        return bar_access.read(self.address, bar, offset, width, sysfs_root=self.sysfs_root)
+    def bar(self, index):
+        return bar_access.PciBar(self.sysfs, self._address, index)
 
-    def write_bar(self, bar, offset, width, value):
-        bar_access.write(self.address, bar, offset, width, value, sysfs_root=self.sysfs_root)
+    def cfg_read(self, width, offset):
+        return config_access.read(
+            self._address, offset, width, sysfs_root=self.sysfs.root
+        )
 
-    def exists(self):
-        return os.path.isdir(self.path)
+    def cfg_write(self, width, offset, value):
+        config_access.write(
+            self._address, offset, width, value, sysfs_root=self.sysfs.root
+        )
+
+    def bar_read(self, index, width, offset):
+        return bar_access.read(
+            self._address, index, offset, width, sysfs_root=self.sysfs.root
+        )
+
+    def bar_write(self, index, width, offset, value):
+        bar_access.write(
+            self._address, index, offset, width, value, sysfs_root=self.sysfs.root
+        )
 
     def __repr__(self):
-        return "Device(%s)" % self.bdf
+        return "PciDevice(%s)" % self._address.bdf
 
     def __str__(self):
-        return self.bdf
+        return self._address.bdf
+
+
+Device = PciDevice
+
+
+__all__ = ["Device", "PciDevice"]

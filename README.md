@@ -1,40 +1,156 @@
 # pcispace
 
-pcispace is a lightweight Python 3.6+ library for PCI device discovery and
-configuration access via sysfs. It provides helpers for parsing PCI BDF
-addresses, scanning devices, reading/writing config space, and accessing BARs
-using mmap with a file-based fallback for I/O resources.
+## Overview
 
-## Features
+pcispace is a small Python 3.6+ library and CLI for working with PCI devices via
+Linux sysfs. It provides:
 
-- Parse and format PCI addresses (`0000:00:1f.6` or `00:1f.6`)
-- Discover devices by vendor/device ID
-- Read/write PCI config space (u8/u16/u32, u64 via two u32)
-- Read/write BAR resources (MMIO mmap with I/O port fallback)
-- CLI tool for basic inspection and access
+- PCI BDF parsing (`0000:03:00.0`)
+- Device discovery by vendor/device ID
+- Config space read/write (u8/u16/u32/u64)
+- BAR access with mmap for MMIO and file I/O for I/O port BARs
+- A CLI for quick inspection and scripting
+
+## Requirements and permissions
+
+- Linux with `/sys/bus/pci/devices` available
+- Python 3.6+
+- Most reads work as an unprivileged user, but writes often require root or
+  CAP_SYS_ADMIN / CAP_SYS_RAWIO depending on kernel and device policy.
+- Even reads may be restricted for some devices.
 
 ## Installation
 
 ```bash
-python setup.py install
+pip install pcispace
 ```
 
-## CLI
+Editable install for development:
+
+```bash
+pip install -e .
+```
+
+## Python usage examples
+
+Discovery:
+
+```python
+from pcispace.discover import list_devices, find_by_id
+from pcispace.sysfs import Sysfs
+
+sysfs = Sysfs()
+for addr in list_devices(sysfs=sysfs):
+    print(addr.bdf)
+
+matches = find_by_id(0x8086, 0x1234, sysfs=sysfs)
+print([addr.bdf for addr in matches])
+```
+
+Config read/write:
+
+```python
+from pcispace import config
+
+bdf = "0000:03:00.0"
+value = config.read_u32(bdf, 0x10)
+print(hex(value))
+
+config.write_u16(bdf, 0x04, 0x0007)
+```
+
+BAR read/write:
+
+```python
+from pcispace import bar
+
+bdf = "0000:03:00.0"
+value = bar.read_u32(bdf, 0, 0x100)
+print(hex(value))
+
+bar.write_u32(bdf, 0, 0x104, 0xdeadbeef)
+```
+
+Device wrapper:
+
+```python
+from pcispace.device import PciDevice
+from pcispace.sysfs import Sysfs
+
+sysfs = Sysfs()
+device = PciDevice(sysfs, "0000:03:00.0")
+print(hex(device.vendor_id))
+print(hex(device.device_id))
+
+value = device.cfg_read(4, 0x10)
+print(hex(value))
+
+bar0 = device.bar(0)
+with bar0.open():
+    print(hex(bar0.read_u32(0x100)))
+```
+
+## CLI examples
+
+List devices:
 
 ```bash
 pcispace list
-pcispace find --vendor 0x8086 --device 0x1234
-pcispace cfg-read 0000:00:1f.6 0x0 16
-pcispace cfg-write 0000:00:1f.6 0x4 32 0x12345678
-pcispace bar-read 0000:00:1f.6 0 0x0 32
-pcispace bar-write 0000:00:1f.6 0 0x4 16 0xabcd
-pcispace dump-config 0000:00:1f.6
+# 0000:00:00.0
+# 0000:03:00.0
 ```
 
-Use `--sysfs-root` to point at a custom sysfs tree for testing.
+Filter by vendor/device:
+
+```bash
+pcispace list --vendor 0x8086
+# 0000:00:1f.6
+# 0000:00:1f.2
+
+pcispace find --vendor 0x8086 --device 0x1234
+# 0000:03:00.0
+```
+
+Config access:
+
+```bash
+pcispace cfg-read --bdf 0000:03:00.0 --offset 0x10 --width 32
+# 0x00000007
+
+pcispace cfg-write --bdf 0000:03:00.0 --offset 0x04 --width 16 --value 0x0007
+```
+
+BAR access:
+
+```bash
+pcispace bar-read --bdf 0000:03:00.0 --bar 0 --offset 0x100 --width 32
+# 0xdeadbeef
+
+pcispace bar-write --bdf 0000:03:00.0 --bar 0 --offset 0x104 --width 32 --value 0x00000001
+```
+
+Config dump:
+
+```bash
+pcispace dump-config --bdf 0000:03:00.0 --start 0 --len 64
+# 0000: 86 80 34 12 07 00 10 00 01 00 00 00 00 00 00 00
+# 0010: ...
+```
+
+Use `--sysfs-root` to point to a custom sysfs tree (useful for tests).
+
+## Safety warnings
+
+Writing to config space or BARs can crash hardware, lock up the system, or
+corrupt data. Only write when you understand the device behavior and have a
+recovery plan. Use read-only operations whenever possible.
 
 ## Testing
 
 ```bash
 pytest -q
 ```
+
+## License
+
+MIT

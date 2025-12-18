@@ -1,13 +1,18 @@
 from setuptools import find_packages, setup
 
 
+about = {}
+with open("pcispace/__init__.py", "r") as handle:
+    exec(handle.read(), about)
+
+
 with open("README.md", "r") as handle:
     long_description = handle.read()
 
 
 setup(
     name="pcispace",
-    version="0.1.0",
+    version=about.get("__version__", "0.0.0"),
     description="PCI config and BAR access via sysfs",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -15,6 +20,8 @@ setup(
     license="MIT",
     python_requires=">=3.6",
     packages=find_packages(exclude=("tests",)),
+    include_package_data=True,
+    install_requires=[],
     entry_points={"console_scripts": ["pcispace=pcispace.cli:main"]},
     classifiers=[
         "License :: OSI Approved :: MIT License",

@@ -1,7 +1,8 @@
 import pytest
 
-from pcispace import bar
-from pcispace.errors import ValidationError
+from pcispace.bar import PciBar
+from pcispace.errors import AlignmentError, OutOfRangeError
+from pcispace.sysfs import Sysfs
 
 
 def test_bar_mmio_read_write(sysfs_root, make_device):
@@ -21,11 +22,20 @@ def test_bar_mmio_read_write(sysfs_root, make_device):
     )
 
     addr = "0000:00:07.0"
-    value = bar.read_u32(addr, 0, 4, sysfs_root=str(sysfs_root))
-    assert value == 0x07060504
+    sysfs = Sysfs(root=str(sysfs_root))
+    pci_bar = PciBar(sysfs, addr, 0)
+    with pci_bar.open():
+        value = pci_bar.read_u32(4)
+        assert value == 0x07060504
 
-    bar.write_u16(addr, 0, 2, 0xBEEF, sysfs_root=str(sysfs_root))
-    assert bar.read_u16(addr, 0, 2, sysfs_root=str(sysfs_root)) == 0xBEEF
+        pci_bar.write_u16(2, 0xBEEF)
+        assert pci_bar.read_u16(2) == 0xBEEF
+
+        pci_bar.write_u64(8, 0x1122334455667788)
+        assert pci_bar.read_u64(8) == 0x1122334455667788
+
+        with pytest.raises(OutOfRangeError):
+            pci_bar.read_u32(256)
 
 
 def test_bar_io_fallback(sysfs_root, make_device):
@@ -45,9 +55,12 @@ def test_bar_io_fallback(sysfs_root, make_device):
     )
 
     addr = "0000:00:08.0"
-    assert bar.read_u8(addr, 1, 1, sysfs_root=str(sysfs_root)) == 1
-    bar.write_u8(addr, 1, 1, 0xAA, sysfs_root=str(sysfs_root))
-    assert bar.read_u8(addr, 1, 1, sysfs_root=str(sysfs_root)) == 0xAA
+    sysfs = Sysfs(root=str(sysfs_root))
+    pci_bar = PciBar(sysfs, addr, 1)
+    with pci_bar.open():
+        assert pci_bar.read_u8(1) == 1
+        pci_bar.write_u8(1, 0xAA)
+        assert pci_bar.read_u8(1) == 0xAA
 
 
 def test_bar_alignment(sysfs_root, make_device):
@@ -66,5 +79,8 @@ def test_bar_alignment(sysfs_root, make_device):
         resource_files={0: data},
     )
 
-    with pytest.raises(ValidationError):
-        bar.read_u32("0000:00:09.0", 0, 2, sysfs_root=str(sysfs_root))
+    sysfs = Sysfs(root=str(sysfs_root))
+    pci_bar = PciBar(sysfs, "0000:00:09.0", 0)
+    with pci_bar.open():
+        with pytest.raises(AlignmentError):
+            pci_bar.read_u32(2)

@@ -1,30 +1,52 @@
 """pcispace package."""
 
+__version__ = "0.1.0"
+
 from .bar import read as read_bar, write as write_bar
 from .config import read as read_config, write as write_config
-from .device import Device
+from .device import Device, PciDevice
 from .discover import find_devices, list_devices
 from .errors import (
+    AlignmentError,
     BarError,
     ConfigError,
+    DeviceNotFoundError,
+    MultipleDevicesFoundError,
+    OutOfRangeError,
     PciAddressError,
     PciError,
+    PciSpaceError,
     PermissionDenied,
+    PermissionDeniedError,
+    ResourceNotFoundError,
     SysfsError,
+    SysfsFormatError,
     ValidationError,
+    ValueRangeError,
 )
 from .types import PciAddress
 
 __all__ = [
+    "__version__",
     "BarError",
     "ConfigError",
     "Device",
+    "DeviceNotFoundError",
+    "PciDevice",
+    "AlignmentError",
+    "MultipleDevicesFoundError",
+    "OutOfRangeError",
     "PciAddress",
     "PciAddressError",
     "PciError",
+    "PciSpaceError",
     "PermissionDenied",
+    "PermissionDeniedError",
+    "ResourceNotFoundError",
     "SysfsError",
+    "SysfsFormatError",
     "ValidationError",
+    "ValueRangeError",
     "find_devices",
     "list_devices",
     "read_bar",

@@ -5,9 +5,8 @@ import pytest
 
 @pytest.fixture
 def sysfs_root(tmp_path):
-    root = tmp_path / "sys"
-    devices = root / "bus" / "pci" / "devices"
-    devices.mkdir(parents=True)
+    root = tmp_path / "sys" / "bus" / "pci" / "devices"
+    root.mkdir(parents=True)
     return root
 
 
@@ -21,7 +20,7 @@ def create_device(
     resource_entries=None,
     resource_files=None,
 ):
-    dev_path = sysfs_root / "bus" / "pci" / "devices" / bdf
+    dev_path = sysfs_root / bdf
     dev_path.mkdir(parents=True)
 
     (dev_path / "vendor").write_text("0x%04x\n" % vendor)
