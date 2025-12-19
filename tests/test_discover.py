@@ -5,6 +5,7 @@ from pypcie.discover import (
     find_one_by_id,
     get_device_info,
     list_devices,
+    find_root_port,
 )
 from pypcie.errors import DeviceNotFoundError, MultipleDevicesFoundError
 from pypcie.sysfs import Sysfs
@@ -64,3 +65,35 @@ def test_find_one_by_id(sysfs_root, make_device):
 
     with pytest.raises(DeviceNotFoundError):
         find_one_by_id(0xDEAD, 0xBEEF, sysfs=sysfs)
+
+
+def test_find_root_port_through_switch(sysfs_root):
+    sys_root = sysfs_root.parents[2]
+    devices_root = sys_root / "devices" / "pci0000:00"
+    rp_bdf = "0000:00:1c.0"
+    switch_bdf = "0000:01:00.0"
+    endpoint_bdf = "0000:02:00.0"
+
+    endpoint_real = devices_root / rp_bdf / switch_bdf / endpoint_bdf
+    endpoint_real.mkdir(parents=True)
+
+    (sysfs_root / rp_bdf).symlink_to(devices_root / rp_bdf)
+    (sysfs_root / switch_bdf).symlink_to(devices_root / rp_bdf / switch_bdf)
+    (sysfs_root / endpoint_bdf).symlink_to(endpoint_real)
+
+    sysfs = Sysfs(root=str(sysfs_root))
+    root_port = find_root_port(endpoint_bdf, sysfs=sysfs)
+    assert root_port.bdf == rp_bdf
+
+
+def test_find_root_port_returns_self_when_top_level(sysfs_root, make_device):
+    make_device(bdf="0000:00:04.0", vendor=0x1111, device=0x2222)
+    sysfs = Sysfs(root=str(sysfs_root))
+    root_port = find_root_port("0000:00:04.0", sysfs=sysfs)
+    assert root_port.bdf == "0000:00:04.0"
+
+
+def test_find_root_port_missing_device(sysfs_root):
+    sysfs = Sysfs(root=str(sysfs_root))
+    with pytest.raises(DeviceNotFoundError):
+        find_root_port("0000:0a:00.0", sysfs=sysfs)

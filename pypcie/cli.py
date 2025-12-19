@@ -6,7 +6,7 @@ import sys
 
 from . import bar as bar_access
 from . import config as config_access
-from .discover import find_by_id, list_devices
+from .discover import build_device_tree, find_by_id
 from .errors import (
     OutOfRangeError,
     PciError,
@@ -51,14 +51,60 @@ def _get_sysfs(args):
     return Sysfs(root=args.sysfs_root) if args.sysfs_root else Sysfs()
 
 
+def _should_display(node, children, matched, cache):
+    if matched is None:
+        return True
+    if node in cache:
+        return cache[node]
+    if node in matched:
+        cache[node] = True
+        return True
+    for child in children.get(node, []):
+        if _should_display(child, children, matched, cache):
+            cache[node] = True
+            return True
+    cache[node] = False
+    return False
+
+
+def _render_tree(sysfs, vendor=None, device=None):
+    roots, children = build_device_tree(sysfs=sysfs)
+    matched = None
+    if vendor is not None or device is not None:
+        matched = set(find_by_id(vendor, device, sysfs=sysfs))
+    root_set = set(roots)
+    cache = {}
+    lines = []
+
+    def render(node, prefix, has_parent, is_last):
+        display_children = [
+            child
+            for child in children.get(node, [])
+            if _should_display(child, children, matched, cache)
+        ]
+        role = "RC" if node in root_set else ("SW" if display_children else "EP")
+        connector = ""
+        if has_parent:
+            connector = "\\-- " if is_last else "|-- "
+        lines.append(prefix + connector + "[%s] %s" % (role, node.bdf))
+        child_prefix = prefix
+        if has_parent:
+            child_prefix += "    " if is_last else "|   "
+        for idx, child in enumerate(display_children):
+            render(child, child_prefix, True, idx == len(display_children) - 1)
+
+    for idx, root in enumerate(roots):
+        if not _should_display(root, children, matched, cache):
+            continue
+        render(root, "", False, idx == len(roots) - 1)
+    return lines
+
+
 def _cmd_list(args):
     sysfs = _get_sysfs(args)
-    if args.vendor is None and args.device is None:
-        devices = list_devices(sysfs=sysfs)
-    else:
-        devices = find_by_id(args.vendor, args.device, sysfs=sysfs)
-    for dev in devices:
-        print(dev.bdf)
+    tree_lines = _render_tree(sysfs, vendor=args.vendor, device=args.device)
+    for line in tree_lines:
+        print(line)
     return 0
 
 

@@ -36,7 +36,7 @@ pip install -e .
 Discovery:
 
 ```python
-from pypcie.discover import list_devices, find_by_id
+from pypcie.discover import list_devices, find_by_id, find_root_port
 from pypcie.sysfs import Sysfs
 
 sysfs = Sysfs()
@@ -45,6 +45,9 @@ for addr in list_devices(sysfs=sysfs):
 
 matches = find_by_id(0x8086, 0x1234, sysfs=sysfs)
 print([addr.bdf for addr in matches])
+
+root_port = find_root_port("0000:02:00.0", sysfs=sysfs)
+print(root_port.bdf)
 ```
 
 Config read/write:
@@ -96,20 +99,23 @@ List devices:
 
 ```bash
 pypcie list
-# 0000:00:00.0
-# 0000:03:00.0
+# [RC] 0000:00:00.0
+# \-- [EP] 0000:03:00.0
 ```
 
 Filter by vendor/device:
 
 ```bash
 pypcie list --vendor 0x8086
-# 0000:00:1f.6
-# 0000:00:1f.2
+# [RC] 0000:00:1f.6
+# [RC] 0000:00:1f.2
 
 pypcie find --vendor 0x8086 --device 0x1234
 # 0000:03:00.0
 ```
+
+`pypcie list` renders a simple ASCII tree: root-complex ports are tagged `[RC]`,
+intermediate bridges/switches `[SW]`, and leaves `[EP]`.
 
 Config access:
 

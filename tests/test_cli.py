@@ -15,15 +15,15 @@ def test_cli_list_and_find(sysfs_root, make_device):
 
     result = _run_cli(["--sysfs-root", str(sysfs_root), "list"], cwd=str(repo_root))
     assert result.returncode == 0
-    lines = sorted(line.strip() for line in result.stdout.splitlines() if line.strip())
-    assert lines == ["0000:00:0b.0", "0000:00:0c.0"]
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    assert lines == ["[RC] 0000:00:0b.0", "[RC] 0000:00:0c.0"]
 
     result = _run_cli(
         ["--sysfs-root", str(sysfs_root), "list", "--vendor", "0x1234"],
         cwd=str(repo_root),
     )
     assert result.returncode == 0
-    assert result.stdout.strip() == "0000:00:0b.0"
+    assert result.stdout.strip() == "[RC] 0000:00:0b.0"
 
     result = _run_cli(
         ["--sysfs-root", str(sysfs_root), "find", "--vendor", "0xabcd"],
@@ -31,6 +31,36 @@ def test_cli_list_and_find(sysfs_root, make_device):
     )
     assert result.returncode == 0
     assert result.stdout.strip() == "0000:00:0c.0"
+
+
+def test_cli_list_tree_view(sysfs_root):
+    sys_root = sysfs_root.parents[2]
+    devices_root = sys_root / "devices" / "pci0000:00"
+    rp_bdf = "0000:00:1c.0"
+    switch_bdf = "0000:01:00.0"
+    endpoint_bdf = "0000:02:00.0"
+
+    endpoint_real = devices_root / rp_bdf / switch_bdf / endpoint_bdf
+    endpoint_real.mkdir(parents=True)
+    rp_real = devices_root / rp_bdf
+    switch_real = devices_root / rp_bdf / switch_bdf
+    for path in (rp_real, switch_real, endpoint_real):
+        (path / "vendor").write_text("0x8086\n")
+        (path / "device").write_text("0x1234\n")
+
+    (sysfs_root / rp_bdf).symlink_to(rp_real)
+    (sysfs_root / switch_bdf).symlink_to(switch_real)
+    (sysfs_root / endpoint_bdf).symlink_to(endpoint_real)
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = _run_cli(["--sysfs-root", str(sysfs_root), "list"], cwd=str(repo_root))
+    assert result.returncode == 0
+    lines = [line.rstrip() for line in result.stdout.splitlines() if line.strip()]
+    assert lines == [
+        "[RC] 0000:00:1c.0",
+        "\\-- [SW] 0000:01:00.0",
+        "    \\-- [EP] 0000:02:00.0",
+    ]
 
 
 def test_cli_cfg_bar_dump(sysfs_root, make_device):
