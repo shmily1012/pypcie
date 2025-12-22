@@ -5,8 +5,9 @@ import os
 import sys
 
 from . import bar as bar_access
+from . import link as link_access
 from . import config as config_access
-from .discover import build_device_tree, find_by_id
+from .discover import build_device_tree, find_by_id, find_root_port
 from .errors import (
     OutOfRangeError,
     PciError,
@@ -49,6 +50,14 @@ def _parse_address(value):
 
 def _get_sysfs(args):
     return Sysfs(root=args.sysfs_root) if args.sysfs_root else Sysfs()
+
+
+def _resolve_link_target(args):
+    if getattr(args, "port_bdf", None) is not None:
+        return args.port_bdf
+    if getattr(args, "endpoint", False):
+        return args.bdf
+    return find_root_port(args.bdf, sysfs=_get_sysfs(args))
 
 
 def _should_display(node, children, matched, cache):
@@ -183,6 +192,104 @@ def _cmd_dump_config(args):
     return 0
 
 
+def _cmd_link_disable(args):
+    target = _resolve_link_target(args)
+    link_access.link_disable(target, sysfs_root=args.sysfs_root)
+    return 0
+
+
+def _cmd_link_enable(args):
+    target = _resolve_link_target(args)
+    link_access.link_enable(target, sysfs_root=args.sysfs_root)
+    return 0
+
+
+def _cmd_link_retrain(args):
+    target = _resolve_link_target(args)
+    link_access.retrain_link(
+        target, sysfs_root=args.sysfs_root, clear_after=args.clear_after
+    )
+    return 0
+
+
+def _cmd_link_status(args):
+    target = _resolve_link_target(args)
+    status = link_access.read_link_status(target, sysfs_root=args.sysfs_root)
+    speed = status["speed_gtps"]
+    if speed is None:
+        speed_text = "unknown(0x%x)" % status["speed_code"]
+    else:
+        speed_text = "%sGT/s" % speed
+    print(
+        "speed=%s width=x%d training=%d dll_link_active=%d"
+        % (
+            speed_text,
+            status["width"],
+            int(status["training"]),
+            int(status["dll_link_active"]),
+        )
+    )
+    return 0
+
+
+def _cmd_link_set_speed(args):
+    target = _resolve_link_target(args)
+    link_access.set_target_link_speed(
+        target,
+        args.speed,
+        retrain=not args.no_retrain,
+        sysfs_root=args.sysfs_root,
+    )
+    return 0
+
+
+def _cmd_link_hot_reset(args):
+    target = _resolve_link_target(args)
+    delay_s = args.delay_ms / 1000.0 if args.delay_ms is not None else 0.002
+    link_access.link_hot_reset(target, sysfs_root=args.sysfs_root, delay_s=delay_s)
+    return 0
+
+
+def _cmd_link_wait(args):
+    target = _resolve_link_target(args)
+    ok = link_access.wait_for_link_training(
+        target,
+        timeout_s=args.timeout,
+        poll_s=args.poll,
+        sysfs_root=args.sysfs_root,
+    )
+    if ok:
+        return 0
+    print("error: link training did not complete before timeout", file=sys.stderr)
+    return 1
+
+
+def _cmd_link_control(args):
+    target = _resolve_link_target(args)
+    link_access.set_link_control_bits(
+        target,
+        args.mask,
+        enable=not args.disable,
+        sysfs_root=args.sysfs_root,
+    )
+    return 0
+
+
+def _add_link_target_args(parser):
+    parser.add_argument("--bdf", required=True, type=_parse_address)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--endpoint",
+        action="store_true",
+        help="operate on the endpoint BDF instead of the upstream root port",
+    )
+    group.add_argument(
+        "--port-bdf",
+        type=_parse_address,
+        help="override target port BDF (root/downstream port)",
+    )
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="pypcie")
     parser.add_argument(
@@ -235,6 +342,82 @@ def build_parser():
         type=lambda v: _parse_non_negative(v, "len"),
     )
 
+    link_disable = subparsers.add_parser("link-disable", help="disable PCIe link")
+    _add_link_target_args(link_disable)
+
+    link_enable = subparsers.add_parser("link-enable", help="enable PCIe link")
+    _add_link_target_args(link_enable)
+
+    link_retrain = subparsers.add_parser("link-retrain", help="retrain PCIe link")
+    _add_link_target_args(link_retrain)
+    link_retrain.add_argument(
+        "--clear-after",
+        action="store_true",
+        help="clear retrain bit after setting it",
+    )
+
+    link_status = subparsers.add_parser("link-status", help="read PCIe link status")
+    _add_link_target_args(link_status)
+
+    link_set_speed = subparsers.add_parser(
+        "link-set-speed", help="set target PCIe link speed"
+    )
+    _add_link_target_args(link_set_speed)
+    link_set_speed.add_argument(
+        "--speed",
+        required=True,
+        help="target speed (2.5/5/8/16/32/64 or TLS code)",
+    )
+    link_set_speed.add_argument(
+        "--no-retrain",
+        action="store_true",
+        help="do not request retraining after setting speed",
+    )
+
+    link_hot_reset = subparsers.add_parser(
+        "link-hot-reset", help="toggle secondary bus reset on bridges"
+    )
+    _add_link_target_args(link_hot_reset)
+    link_hot_reset.add_argument(
+        "--delay-ms",
+        type=lambda v: _parse_non_negative(v, "delay-ms"),
+        default=2,
+        help="delay between assert/deassert (milliseconds)",
+    )
+
+    link_wait = subparsers.add_parser(
+        "link-wait", help="wait for PCIe link training to complete"
+    )
+    _add_link_target_args(link_wait)
+    link_wait.add_argument(
+        "--timeout",
+        type=float,
+        default=1.0,
+        help="timeout in seconds (default: 1.0)",
+    )
+    link_wait.add_argument(
+        "--poll",
+        type=float,
+        default=0.01,
+        help="poll interval in seconds (default: 0.01)",
+    )
+
+    link_control = subparsers.add_parser(
+        "link-control", help="set or clear PCIe link control bits"
+    )
+    _add_link_target_args(link_control)
+    link_control.add_argument(
+        "--mask",
+        required=True,
+        type=lambda v: _parse_int(v, "mask"),
+        help="bit mask to set/clear (hex or int)",
+    )
+    link_control.add_argument(
+        "--disable",
+        action="store_true",
+        help="clear mask bits instead of setting",
+    )
+
     return parser
 
 
@@ -256,6 +439,22 @@ def main(argv=None):
             return _cmd_bar_write(args)
         if args.command == "dump-config":
             return _cmd_dump_config(args)
+        if args.command == "link-disable":
+            return _cmd_link_disable(args)
+        if args.command == "link-enable":
+            return _cmd_link_enable(args)
+        if args.command == "link-retrain":
+            return _cmd_link_retrain(args)
+        if args.command == "link-status":
+            return _cmd_link_status(args)
+        if args.command == "link-set-speed":
+            return _cmd_link_set_speed(args)
+        if args.command == "link-hot-reset":
+            return _cmd_link_hot_reset(args)
+        if args.command == "link-wait":
+            return _cmd_link_wait(args)
+        if args.command == "link-control":
+            return _cmd_link_control(args)
     except PciError as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 1

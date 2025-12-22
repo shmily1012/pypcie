@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from pypcie import config
+
 
 def _run_cli(args, cwd):
     cmd = [sys.executable, "-m", "pypcie.cli"] + args
@@ -196,3 +198,94 @@ def test_cli_cfg_bar_dump(sysfs_root, make_device):
     assert result.returncode == 0
     first_line = result.stdout.splitlines()[0]
     assert first_line == "0000: 00 01 ef be 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f"
+
+
+def test_cli_link_ops(sysfs_root, make_device):
+    config_bytes = bytearray(256)
+    config_bytes[0x06:0x08] = (0x0010).to_bytes(2, "little")
+    config_bytes[0x0E] = 0x00
+    config_bytes[0x34] = 0x50
+    config_bytes[0x50] = 0x10
+    config_bytes[0x51] = 0x00
+    config_bytes[0x52:0x54] = (0x0002).to_bytes(2, "little")
+    config_bytes[0x62:0x64] = (0x0043).to_bytes(2, "little")
+    make_device(bdf="0000:00:0e.0", config_bytes=config_bytes)
+
+    bridge_bytes = bytearray(256)
+    bridge_bytes[0x0E] = 0x01
+    make_device(bdf="0000:00:0f.0", config_bytes=bridge_bytes)
+
+    repo_root = Path(__file__).resolve().parents[1]
+    base = ["--sysfs-root", str(sysfs_root)]
+
+    result = _run_cli(
+        base + ["link-status", "--bdf", "0000:00:0e.0"], cwd=str(repo_root)
+    )
+    assert result.returncode == 0
+    assert (
+        result.stdout.strip()
+        == "speed=8.0GT/s width=x4 training=0 dll_link_active=0"
+    )
+
+    result = _run_cli(
+        base + ["link-disable", "--bdf", "0000:00:0e.0"], cwd=str(repo_root)
+    )
+    assert result.returncode == 0
+    value = config.read_u16("0000:00:0e.0", 0x60, sysfs_root=str(sysfs_root))
+    assert value & 0x0010
+
+    result = _run_cli(
+        base
+        + ["link-set-speed", "--bdf", "0000:00:0e.0", "--speed", "8.0", "--no-retrain"],
+        cwd=str(repo_root),
+    )
+    assert result.returncode == 0
+    value = config.read_u16("0000:00:0e.0", 0x80, sysfs_root=str(sysfs_root))
+    assert (value & 0x000F) == 0x3
+
+    result = _run_cli(
+        base + ["link-hot-reset", "--bdf", "0000:00:0f.0", "--delay-ms", "0"],
+        cwd=str(repo_root),
+    )
+    assert result.returncode == 0
+
+
+def test_cli_link_uses_root_port(sysfs_root):
+    sys_root = sysfs_root.parents[2]
+    devices_root = sys_root / "devices" / "pci0000:00"
+    rp_bdf = "0000:00:1c.0"
+    ep_bdf = "0000:01:00.0"
+
+    rp_real = devices_root / rp_bdf
+    ep_real = devices_root / rp_bdf / ep_bdf
+    rp_real.mkdir(parents=True)
+    ep_real.mkdir(parents=True)
+
+    rp_config = bytearray(256)
+    rp_config[0x06:0x08] = (0x0010).to_bytes(2, "little")
+    rp_config[0x0E] = 0x01
+    rp_config[0x34] = 0x50
+    rp_config[0x50] = 0x10
+    rp_config[0x51] = 0x00
+    rp_config[0x62:0x64] = (0x0012).to_bytes(2, "little")
+    (rp_real / "vendor").write_text("0x8086\n")
+    (rp_real / "device").write_text("0x1234\n")
+    with open(str(rp_real / "config"), "wb") as handle:
+        handle.write(rp_config)
+
+    ep_config = bytearray(256)
+    (ep_real / "vendor").write_text("0x1234\n")
+    (ep_real / "device").write_text("0x5678\n")
+    with open(str(ep_real / "config"), "wb") as handle:
+        handle.write(ep_config)
+
+    (sysfs_root / rp_bdf).symlink_to(rp_real)
+    (sysfs_root / ep_bdf).symlink_to(ep_real)
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = _run_cli(
+        ["--sysfs-root", str(sysfs_root), "link-status", "--bdf", ep_bdf],
+        cwd=str(repo_root),
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == "speed=5.0GT/s width=x1 training=0 dll_link_active=0"

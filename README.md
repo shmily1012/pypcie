@@ -143,6 +143,25 @@ pypcie dump-config --bdf 0000:03:00.0 --start 0 --len 64
 # 0010: ...
 ```
 
+Link control:
+
+```bash
+pypcie link-status --bdf 0000:03:00.0
+# speed=8.0GT/s width=x8 training=0 dll_link_active=1
+
+pypcie link-disable --bdf 0000:03:00.0
+pypcie link-enable --bdf 0000:03:00.0
+pypcie link-retrain --bdf 0000:03:00.0
+
+pypcie link-set-speed --bdf 0000:03:00.0 --speed 8.0
+
+pypcie link-hot-reset --bdf 0000:00:1c.0 --delay-ms 2
+```
+
+By default, link operations target the upstream root port for the given BDF.
+Use `--endpoint` to operate on the device's own PCIe capability or `--port-bdf`
+to target a specific port explicitly.
+
 Use `--sysfs-root` to point to a custom sysfs tree (useful for tests).
 
 ## Safety warnings
